@@ -1,0 +1,8 @@
+[package]
+name = "video-transpose"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ffmpeg-next = "8"
+indicatif = "0.18"
