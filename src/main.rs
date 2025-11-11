@@ -188,7 +188,10 @@ fn transpose_and_save(
     encoder.set_width(new_width as u32);
     encoder.set_height(new_height as u32);
     encoder.set_format(Pixel::YUV420P);
-    encoder.set_time_base(ffmpeg::Rational(1, fps.numerator()));
+
+    // Time base should be inverse of frame rate
+    // For 29.97 fps (30000/1001), time_base should be 1001/30000
+    encoder.set_time_base(ffmpeg::Rational(fps.denominator(), fps.numerator()));
     encoder.set_frame_rate(Some(fps));
     encoder.set_max_b_frames(0);
 
@@ -206,9 +209,15 @@ fn transpose_and_save(
 
     // Copy encoder parameters to stream
     ostream.set_parameters(&encoder);
-    ostream.set_time_base(ffmpeg::Rational(1, fps.numerator()));
+    ostream.set_time_base(ffmpeg::Rational(fps.denominator(), fps.numerator()));
     ostream.set_avg_frame_rate(fps);
 
+    println!(
+        "  Input FPS: {}/{} ({:.2} fps)",
+        fps.numerator(),
+        fps.denominator(),
+        fps.numerator() as f64 / fps.denominator() as f64
+    );
     println!(
         "  Encoder time base: {}/{}",
         encoder_time_base.numerator(),
@@ -247,7 +256,10 @@ fn transpose_and_save(
     );
 
     // Calculate PTS increment for desired frame rate
-    let pts_increment = actual_stream_time_base.denominator() / fps.numerator();
+    // For 29.97 fps (30000/1001) with time_base 1/30000:
+    // pts_increment = (30000 * 1001) / 30000 = 1001
+    let pts_increment = (actual_stream_time_base.denominator() as i64 * fps.denominator() as i64)
+        / fps.numerator() as i64;
     println!("  PTS increment per frame: {}", pts_increment);
 
     // Process each output frame
@@ -316,7 +328,7 @@ fn transpose_and_save(
             encoder_time_base,
             actual_stream_time_base,
             &mut current_pts,
-            pts_increment as i64,
+            pts_increment,
         )?;
 
         pb.inc(1);
@@ -331,7 +343,7 @@ fn transpose_and_save(
         encoder_time_base,
         actual_stream_time_base,
         &mut current_pts,
-        pts_increment as i64,
+        pts_increment,
     )?;
 
     // Write trailer
